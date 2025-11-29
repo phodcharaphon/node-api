@@ -4,6 +4,7 @@ const axios = require('axios');
 const cors = require('cors');
 const { GoogleAuth } = require('google-auth-library');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -12,18 +13,32 @@ const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 app.use(express.json());
 app.use(cors());
 
-// ใช้ path Secret File ของ Render
-const SERVICE_ACCOUNT_PATH = path.join('/etc/secrets', 'service-account.json'); // <-- ใส่ชื่อไฟล์จริงของคุณ
+// Secret File path ของ Render
+const SERVICE_ACCOUNT_PATH = path.join('/etc/secrets', 'service-account.json'); // <-- ใส่ชื่อไฟล์จริง
+
+// ฟังก์ชันตรวจสอบว่ามี Secret File หรือไม่
+function checkServiceAccountFile() {
+    if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
+        throw new Error(`Service account file not found at ${SERVICE_ACCOUNT_PATH}`);
+    }
+}
 
 // ดึง OAuth token จาก service-account.json
 async function getOAuthToken() {
+    checkServiceAccountFile();
+
     const auth = new GoogleAuth({
         keyFile: SERVICE_ACCOUNT_PATH,
-        scopes: ['https://www.googleapis.com/auth/paLM'] // <-- scope ถูกต้องสำหรับ Gemini/PaLM API
+        scopes: ['https://www.googleapis.com/auth/paLM']
     });
 
     const client = await auth.getClient();
     const tokenResponse = await client.getAccessToken();
+
+    if (!tokenResponse || !tokenResponse.token) {
+        throw new Error('Failed to get access token from service account');
+    }
+
     return tokenResponse.token;
 }
 
@@ -48,7 +63,7 @@ app.post('/analyze', async (req, res) => {
 `;
 
     try {
-        const token = await getOAuthToken(); // ดึง token แบบ realtime
+        const token = await getOAuthToken();
 
         const response = await axios.post(
             'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateText',
