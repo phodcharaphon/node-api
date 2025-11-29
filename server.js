@@ -14,7 +14,7 @@ app.use(cors());
 // ฟังก์ชันดึง OAuth token จาก service-account.json local
 async function getOAuthToken() {
     const auth = new GoogleAuth({
-        keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS, // path local
+        keyFile: process.env.GOOGLE_SERVICE_ACCOUNT_JSON, // path local
         scopes: 'https://www.googleapis.com/auth/cloud-platform'
     });
     const client = await auth.getClient();
