@@ -10,17 +10,17 @@ app.use(express.json());
 app.use(cors());
 
 // ----------------- ENV -----------------
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GOOGLE_OAUTH_TOKEN = process.env.GOOGLE_OAUTH_TOKEN;
 const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 
 // ----------------- ROUTE -----------------
 app.post('/analyze', async (req, res) => {
-  const { text, userId, groupId } = req.body;
-  if (!text || !userId || !groupId) {
-    return res.status(400).json({ error: "Missing parameters" });
-  }
+    const { text, userId, groupId } = req.body;
+    if (!text || !userId || !groupId) {
+        return res.status(400).json({ error: "Missing parameters" });
+    }
 
-  const prompt = `
+    const prompt = `
 คุณคือระบบคัดกรองข้อความสำคัญสำหรับผู้บริหาร
 ตอบกลับเป็น JSON เท่านั้น:
 {
@@ -35,60 +35,57 @@ app.post('/analyze', async (req, res) => {
 - NORMAL = เรื่องทั่วไป
 `;
 
-  try {
-    // เรียก Gemini API
-    const response = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-      {
-        temperature: 0,
-        candidate_count: 1,
-        max_output_tokens: 512,
-        contents: [
-          { mime_type: "text/plain", text: prompt }
-        ]
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': GEMINI_API_KEY
-        }
-      }
-    );
-
-    const aiText = response.data.candidates?.[0]?.content?.[0]?.text?.trim() || "{}";
-
-    let jsonResult;
     try {
-      jsonResult = JSON.parse(aiText);
-    } catch {
-      jsonResult = { level: "NORMAL", text, userId, groupId };
-    }
+        // เรียก Gemini API
+        const response = await axios.post(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateText',
+            {
+                prompt: { text: prompt },
+                temperature: 0,
+                max_output_tokens: 512
+            },
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${GOOGLE_OAUTH_TOKEN}`
+                }
+            }
+        );
 
-    // ส่ง LINE หากสำคัญ
-    if (jsonResult.level === "IMPORTANT") {
-      const alertMessage = `🚨 ข้อความสำคัญจาก BOT A
+        const aiText = response.data.candidates?.[0]?.content?.[0]?.text?.trim() || "{}";
+
+        let jsonResult;
+        try {
+            jsonResult = JSON.parse(aiText);
+        } catch {
+            jsonResult = { level: "NORMAL", text, userId, groupId };
+        }
+
+        // ส่ง LINE หากสำคัญ
+        if (jsonResult.level === "IMPORTANT") {
+            const alertMessage = `🚨 ข้อความสำคัญจาก BOT A
 🏢 กลุ่ม: ${jsonResult.groupId}
 👤 ผู้ส่ง: ${jsonResult.userId}
 💬 ข้อความ: ${jsonResult.text}`;
 
-      await axios.post('https://api.line.me/v2/bot/message/push', {
-        to: groupId, // หรือ userId ของผู้บริหาร
-        messages: [{ type: "text", text: alertMessage }]
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${LINE_BOT_TOKEN}`
+            await axios.post('https://api.line.me/v2/bot/message/push', {
+                to: groupId, // หรือ userId ของผู้บริหาร
+                messages: [{ type: "text", text: alertMessage }]
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${LINE_BOT_TOKEN}`
+                }
+            });
         }
-      });
-    }
 
-    res.json({ status: "ok", result: jsonResult });
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(500).json({ error: "AI analysis failed" });
-  }
+        res.json({ status: "ok", result: jsonResult });
+    } catch (err) {
+        console.error(err.response?.data || err.message);
+        res.status(500).json({ error: "AI analysis failed" });
+    }
 });
 
 app.listen(port, () => {
-  console.log(`Node server running on port ${port}`);
+    console.log(`Node server running on port ${port}`);
 });
