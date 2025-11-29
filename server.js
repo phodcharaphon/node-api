@@ -12,8 +12,8 @@ const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 app.use(express.json());
 app.use(cors());
 
-// path ของ secret file บน Render
-const SERVICE_ACCOUNT_PATH = path.join('/opt/render/project/secrets', 'service-account.json');
+// ใช้ path Secret File ของ Render
+const SERVICE_ACCOUNT_PATH = path.join('/etc/secrets', 'service-account.json'); // <-- ใส่ชื่อไฟล์จริงของคุณ
 
 // ดึง OAuth token จาก service-account.json
 async function getOAuthToken() {
