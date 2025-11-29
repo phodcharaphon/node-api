@@ -11,12 +11,20 @@ const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 app.use(express.json());
 app.use(cors());
 
-// ฟังก์ชันดึง OAuth token จาก service-account.json local
+// ฟังก์ชันดึง OAuth token จาก GOOGLE_SERVICE_ACCOUNT_JSON (ENV)
 async function getOAuthToken() {
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+        throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON not set in ENV");
+    }
+
+    // แปลง JSON string เป็น object
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+
     const auth = new GoogleAuth({
-        keyFile: process.env.GOOGLE_SERVICE_ACCOUNT_JSON, // path local
+        credentials,
         scopes: 'https://www.googleapis.com/auth/cloud-platform'
     });
+
     const client = await auth.getClient();
     const tokenResponse = await client.getAccessToken();
     return tokenResponse.token;
@@ -67,7 +75,8 @@ app.post('/analyze', async (req, res) => {
 👤 ผู้ส่ง: ${jsonResult.userId}
 💬 ข้อความ: ${jsonResult.text}`;
 
-            await axios.post('https://api.line.me/v2/bot/message/push',
+            await axios.post(
+                'https://api.line.me/v2/bot/message/push',
                 { to: groupId, messages: [{ type: "text", text: alertMessage }] },
                 { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_BOT_TOKEN}` } }
             );
