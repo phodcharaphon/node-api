@@ -3,6 +3,7 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const { GoogleAuth } = require('google-auth-library');
+const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -11,17 +12,13 @@ const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 app.use(express.json());
 app.use(cors());
 
-// ฟังก์ชันดึง OAuth token จาก GOOGLE_SERVICE_ACCOUNT_JSON (ENV)
+// path ของ secret file บน Render
+const SERVICE_ACCOUNT_PATH = path.join('/opt/render/project/secrets', 'service-account.json');
+
+// ดึง OAuth token จาก service-account.json
 async function getOAuthToken() {
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-        throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON not set in ENV");
-    }
-
-    // แปลง JSON string เป็น object
-    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-
     const auth = new GoogleAuth({
-        credentials,
+        keyFile: SERVICE_ACCOUNT_PATH,
         scopes: 'https://www.googleapis.com/auth/cloud-platform'
     });
 
@@ -68,7 +65,6 @@ app.post('/analyze', async (req, res) => {
             jsonResult = { level: "NORMAL", text, userId, groupId };
         }
 
-        // ส่ง LINE หากสำคัญ
         if (jsonResult.level === "IMPORTANT") {
             const alertMessage = `🚨 ข้อความสำคัญจาก BOT A
 🏢 กลุ่ม: ${jsonResult.groupId}
