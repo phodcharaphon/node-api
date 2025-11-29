@@ -19,7 +19,7 @@ const SERVICE_ACCOUNT_PATH = path.join('/etc/secrets', 'service-account.json'); 
 async function getOAuthToken() {
     const auth = new GoogleAuth({
         keyFile: SERVICE_ACCOUNT_PATH,
-        scopes: 'https://www.googleapis.com/auth/cloud-platform'
+        scopes: ['https://www.googleapis.com/auth/paLM'] // <-- scope ถูกต้องสำหรับ Gemini/PaLM API
     });
 
     const client = await auth.getClient();
