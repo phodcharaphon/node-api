@@ -13,10 +13,10 @@ app.use(cors());
 const IMPORTANT_KEYWORDS = ['ไฟไหม้', 'อุบัติเหตุ', 'ระบบล่ม', 'คดี'];
 
 // URL ของ Bot 2 (สรุปและ push message)
-const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
+const BOT2_URL = process.env.BOT2_URL;
 
 console.log("🔍 Loaded ENV:");
-console.log("LINE_BOT_TOKEN:", LINE_BOT_TOKEN ? "OK" : "MISSING");
+console.log("BOT2_URL:", BOT2_URL ? "OK" : "MISSING");
 
 // Health Check
 app.get('/', (req, res) => res.send('🚀 Node API running'));
@@ -46,7 +46,7 @@ app.post('/analyze', async (req, res) => {
             groupName
         };
 
-        await axios.post(LINE_BOT_TOKEN, bot2Payload, {
+        await axios.post(BOT2_URL, bot2Payload, {
             headers: { 'Content-Type': 'application/json' }
         });
 
