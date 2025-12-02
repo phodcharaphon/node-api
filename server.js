@@ -36,6 +36,7 @@ app.get('/analyze', (req, res) => {
 });
 
 // POST /analyze
+// POST /analyze
 app.post('/analyze', async (req, res) => {
     const { text, userId, groupId } = req.body;
     console.log("📥 POST /analyze:", req.body);
@@ -52,14 +53,15 @@ app.post('/analyze', async (req, res) => {
 
     // ส่ง LINE หาก IMPORTANT
     if (level === 'IMPORTANT' && LINE_BOT_TOKEN) {
-        const alertMessage = `🚨 ข้อความสำคัญจาก BOT\n🏢 กลุ่ม: ${groupId}\n👤 ผู้ส่ง: ${userId}\n💬 ข้อความ: ${text}`;
-        console.log("📤 Sending alert to LINE...");
+        const targetId = groupId || userId; // fallback: ถ้า groupId ไม่มี ส่งไป userId แทน
+        const alertMessage = `🚨 ข้อความสำคัญจาก BOT\n🏢 กลุ่ม: ${groupId || 'ส่วนตัว'}\n👤 ผู้ส่ง: ${userId}\n💬 ข้อความ: ${text}`;
+        console.log(`📤 Sending alert to LINE (to: ${targetId})...`);
 
         try {
             await axios.post(
                 'https://api.line.me/v2/bot/message/push',
                 {
-                    to: groupId,
+                    to: targetId,
                     messages: [{ type: 'text', text: alertMessage }],
                 },
                 {
