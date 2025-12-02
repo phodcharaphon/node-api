@@ -1,16 +1,15 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
-const bodyParser = require('body-parser');
 const cors = require('cors');
 
 const app = express();
 const port = process.env.PORT || 10000;
 
-app.use(bodyParser.json());
+app.use(express.json());
 app.use(cors());
 
-// ENV
+// ------------------------ ENV ------------------------
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 
@@ -18,7 +17,7 @@ console.log("🔍 Loaded ENV:");
 console.log("GEMINI_API_KEY:", GEMINI_API_KEY ? "OK" : "MISSING");
 console.log("LINE_BOT_TOKEN:", LINE_BOT_TOKEN ? "OK" : "MISSING");
 
-// ------------------------ Render Health Check ------------------------
+// ------------------------ Health Check ------------------------
 app.get("/", (req, res) => {
     res.send("🚀 Node API running on Render");
 });
@@ -49,18 +48,20 @@ NORMAL = เรื่องทั่วไป
     try {
         console.log("🔄 Calling Gemini API...");
 
+        // ------------------------ Gemini API (AI Studio) ------------------------
         const geminiRes = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5:generateText?key=${GEMINI_API_KEY}`,
             {
-                contents: [{ parts: [{ text: prompt }] }]
+                prompt: { text: prompt },
+                temperature: 0.0,
+                maxOutputTokens: 256
             },
             { headers: { "Content-Type": "application/json" } }
         );
 
         console.log("✅ Gemini RAW Response:", geminiRes.data);
 
-        const aiText =
-            geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "{}";
+        const aiText = geminiRes.data?.candidates?.[0]?.output || "{}";
 
         let jsonResult;
         try {
@@ -71,7 +72,7 @@ NORMAL = เรื่องทั่วไป
 
         // ------------------------ SEND LINE IF IMPORTANT ------------------------
         if (jsonResult.level === "IMPORTANT") {
-            const alertMessage = `🚨 ข้อความสำคัญจาก BOT A
+            const alertMessage = `🚨 ข้อความสำคัญจาก BOT
 🏢 กลุ่ม: ${jsonResult.groupId}
 👤 ผู้ส่ง: ${jsonResult.userId}
 💬 ข้อความ: ${jsonResult.text}`;
