@@ -17,7 +17,7 @@ const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 if (!GEMINI_API_KEY) console.log("❌ ERROR: GEMINI_API_KEY is missing!");
 if (!LINE_BOT_TOKEN) console.log("❌ ERROR: LINE_BOT_TOKEN is missing!");
 
-app.post('/analyze', async (req, res) => {
+app.post('/', async (req, res) => {
     console.log("📥 Received request:", req.body);
 
     const { text, userId, groupId } = req.body;
