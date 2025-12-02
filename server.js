@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -32,8 +33,8 @@ app.get('/analyze', (req, res) => {
 });
 
 // ------------------------ POST /analyze ------------------------
-app.post('/analyze', (req, res) => {
-    const { text, userId, groupId } = req.body;
+app.post('/analyze', async (req, res) => {
+    const { text, userId, groupId, replyToken } = req.body;
     console.log("📥 POST /analyze:", req.body);
 
     if (!text || !userId || !groupId) {
@@ -45,10 +46,27 @@ app.post('/analyze', (req, res) => {
 
     const result = { level, text, userId, groupId };
 
-    // Node.js จะไม่ push LINE เพื่อให้ทำงานร่วมกับ PHP ได้
-    if (level === 'IMPORTANT') {
+    // ส่งข้อความกลับผ่าน Reply API ถ้ามี replyToken
+    if (replyToken) {
+        try {
+            await axios.post('https://api.line.me/v2/bot/message/reply', {
+                replyToken: replyToken,
+                messages: [
+                    { type: 'text', text: isImportant ? `⚠️ Important: ${text}` : `✅ Received: ${text}` }
+                ]
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.LINE_BOT_TOKEN}`
+                }
+            });
+            console.log("💡 LINE reply sent");
+        } catch (err) {
+            console.error("❌ LINE reply failed:", err.response?.data || err.message);
+        }
+    } else if (level === 'IMPORTANT') {
         console.log("⚠️ Important message detected:", result);
-        console.log("💡 LINE push skipped: bot may not be in group or user not following bot");
+        console.log("💡 LINE push skipped: no replyToken provided");
     }
 
     return res.json({ status: 'ok', result });
