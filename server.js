@@ -14,14 +14,18 @@ app.use(cors());
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 
+if (!GEMINI_API_KEY) console.log("❌ ERROR: GEMINI_API_KEY is missing!");
+if (!LINE_BOT_TOKEN) console.log("❌ ERROR: LINE_BOT_TOKEN is missing!");
+
 app.post('/analyze', async (req, res) => {
+    console.log("📥 Received request:", req.body);
+
     const { text, userId, groupId } = req.body;
     if (!text || !userId || !groupId)
         return res.status(400).json({ error: "Missing parameters" });
 
     const prompt = `
-คุณคือระบบคัดกรองข้อความสำคัญสำหรับผู้บริหาร
-ตอบกลับเป็น JSON เท่านั้น:
+ตอบเป็น JSON เท่านั้น:
 {
   "level": "IMPORTANT หรือ NORMAL",
   "text": "${text}",
@@ -29,13 +33,14 @@ app.post('/analyze', async (req, res) => {
   "groupId": "${groupId}"
 }
 
-เกณฑ์:
-- IMPORTANT = เหตุฉุกเฉิน เช่น อุบัติเหตุ, ไฟไหม้, เงินหาย, ระบบล่ม, คดีความ
-- NORMAL = เรื่องทั่วไป
+IMPORTANT = เหตุฉุกเฉิน เช่น ไฟไหม้ อุบัติเหตุ ระบบล่ม คดี
+NORMAL = เรื่องทั่วไป
 `;
 
     try {
-        // ------------------ เรียก Gemini ------------------
+        // ------------------ GEMINI ------------------
+        console.log("🔄 Calling Gemini...");
+
         const geminiRes = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             {
@@ -45,6 +50,8 @@ app.post('/analyze', async (req, res) => {
             },
             { headers: { "Content-Type": "application/json" } }
         );
+
+        console.log("✅ Gemini response:", geminiRes.data);
 
         const aiText =
             geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
@@ -57,12 +64,14 @@ app.post('/analyze', async (req, res) => {
             jsonResult = { level: "NORMAL", text, userId, groupId };
         }
 
-        // ------------------ ถ้า IMPORTANT ส่ง LINE ------------------
+        // ------------------ LINE PUSH ------------------
         if (jsonResult.level === "IMPORTANT") {
             const alertMessage = `🚨 ข้อความสำคัญจาก BOT A
 🏢 กลุ่ม: ${jsonResult.groupId}
 👤 ผู้ส่ง: ${jsonResult.userId}
 💬 ข้อความ: ${jsonResult.text}`;
+
+            console.log("📤 Sending LINE alert...");
 
             await axios.post(
                 "https://api.line.me/v2/bot/message/push",
@@ -79,14 +88,14 @@ app.post('/analyze', async (req, res) => {
             );
         }
 
-        res.json({ status: "ok", result: jsonResult });
+        return res.json({ status: "ok", result: jsonResult });
 
     } catch (err) {
-        console.error(err.response?.data || err.message);
-        res.status(500).json({ error: "AI analysis failed" });
+        console.error("❌ ERROR:", err.response?.data || err.message);
+        return res.status(500).json({ error: "AI analysis failed", detail: err.message });
     }
 });
 
 app.listen(port, () => {
-    console.log(`Node server running on port ${port}`);
+    console.log(`✅ Node server running on port ${port}`);
 });
