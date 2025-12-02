@@ -1,51 +1,23 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
+const bodyParser = require('body-parser');
 const cors = require('cors');
-const { GoogleAuth } = require('google-auth-library');
-const path = require('path');
-const fs = require('fs');
 
 const app = express();
 const port = process.env.PORT || 10000;
-const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 
-app.use(express.json());
+app.use(bodyParser.json());
 app.use(cors());
 
-// Secret File path ของ Render
-const SERVICE_ACCOUNT_PATH = path.join('/etc/secrets', 'service-account.json'); // <-- ใส่ชื่อไฟล์จริง
+// ENV
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 
-// ฟังก์ชันตรวจสอบว่ามี Secret File หรือไม่
-function checkServiceAccountFile() {
-    if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
-        throw new Error(`Service account file not found at ${SERVICE_ACCOUNT_PATH}`);
-    }
-}
-
-// ดึง OAuth token จาก service-account.json
-async function getOAuthToken() {
-    checkServiceAccountFile();
-
-    const auth = new GoogleAuth({
-        keyFile: SERVICE_ACCOUNT_PATH,
-        scopes: ['https://www.googleapis.com/auth/paLM']
-    });
-
-    const client = await auth.getClient();
-    const tokenResponse = await client.getAccessToken();
-
-    if (!tokenResponse || !tokenResponse.token) {
-        throw new Error('Failed to get access token from service account');
-    }
-
-    return tokenResponse.token;
-}
-
-// route analyze
 app.post('/analyze', async (req, res) => {
     const { text, userId, groupId } = req.body;
-    if (!text || !userId || !groupId) return res.status(400).json({ error: "Missing parameters" });
+    if (!text || !userId || !groupId)
+        return res.status(400).json({ error: "Missing parameters" });
 
     const prompt = `
 คุณคือระบบคัดกรองข้อความสำคัญสำหรับผู้บริหาร
@@ -63,23 +35,29 @@ app.post('/analyze', async (req, res) => {
 `;
 
     try {
-        const token = await getOAuthToken();
-
-        const response = await axios.post(
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateText',
-            { prompt: { text: prompt }, temperature: 0, max_output_tokens: 512 },
-            { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
+        // ------------------ เรียก Gemini ------------------
+        const geminiRes = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                contents: [{
+                    parts: [{ text: prompt }]
+                }]
+            },
+            { headers: { "Content-Type": "application/json" } }
         );
 
-        const aiText = response.data?.candidates?.[0]?.output?.text?.trim() || "{}";
-        let jsonResult;
+        const aiText =
+            geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+            || "{}";
 
+        let jsonResult;
         try {
             jsonResult = JSON.parse(aiText);
         } catch {
             jsonResult = { level: "NORMAL", text, userId, groupId };
         }
 
+        // ------------------ ถ้า IMPORTANT ส่ง LINE ------------------
         if (jsonResult.level === "IMPORTANT") {
             const alertMessage = `🚨 ข้อความสำคัญจาก BOT A
 🏢 กลุ่ม: ${jsonResult.groupId}
@@ -87,9 +65,17 @@ app.post('/analyze', async (req, res) => {
 💬 ข้อความ: ${jsonResult.text}`;
 
             await axios.post(
-                'https://api.line.me/v2/bot/message/push',
-                { to: groupId, messages: [{ type: "text", text: alertMessage }] },
-                { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_BOT_TOKEN}` } }
+                "https://api.line.me/v2/bot/message/push",
+                {
+                    to: jsonResult.groupId,
+                    messages: [{ type: "text", text: alertMessage }]
+                },
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${LINE_BOT_TOKEN}`
+                    }
+                }
             );
         }
 
@@ -101,4 +87,6 @@ app.post('/analyze', async (req, res) => {
     }
 });
 
-app.listen(port, () => console.log(`Node server running on port ${port}`));
+app.listen(port, () => {
+    console.log(`Node server running on port ${port}`);
+});
