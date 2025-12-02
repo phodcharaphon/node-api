@@ -9,7 +9,6 @@ const port = process.env.PORT || 10000;
 app.use(express.json());
 app.use(cors());
 
-// ------------------------ ENV ------------------------
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 
@@ -17,22 +16,14 @@ console.log("🔍 Loaded ENV:");
 console.log("GEMINI_API_KEY:", GEMINI_API_KEY ? "OK" : "MISSING");
 console.log("LINE_BOT_TOKEN:", LINE_BOT_TOKEN ? "OK" : "MISSING");
 
-// ------------------------ Health Check ------------------------
 app.get("/", (req, res) => {
-    res.send("🚀 Node API running on Render");
+    res.send("🚀 Node API running");
 });
 
-app.get("/analyze", (req, res) => {
-    res.send("Use POST method to /analyze with JSON body");
-});
-
-// ------------------------ MAIN API ------------------------
 app.post("/analyze", async (req, res) => {
     console.log("📥 POST /analyze:", req.body);
-
     const { text, userId, groupId } = req.body;
     if (!text || !userId || !groupId) {
-        console.log("❌ Missing parameters");
         return res.status(400).json({ error: "Missing parameters" });
     }
 
@@ -52,62 +43,46 @@ NORMAL = เรื่องทั่วไป
     try {
         console.log("🔄 Calling Gemini API...");
 
-        // ------------------------ Gemini API (AI Studio) ------------------------
         const geminiRes = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0:generateText?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateText?key=${GEMINI_API_KEY}`,
             {
                 prompt: { text: prompt },
                 temperature: 0.0,
                 maxOutputTokens: 256
             },
-            { headers: { "Content-Type": "application/json" }, timeout: 10000 }
+            { headers: { "Content-Type": "application/json" }, timeout: 20000 }
         );
 
-        const aiText = geminiRes.data?.candidates?.[0]?.output || "{}";
+        const aiText = geminiRes.data?.candidates?.[0]?.output;
+        console.log("📝 Gemini responded:", aiText);
+
         let jsonResult;
         try {
             jsonResult = JSON.parse(aiText);
             if (!jsonResult.level) jsonResult.level = "NORMAL";
-        } catch {
+        } catch (e) {
+            console.warn("⚠️ Failed to parse JSON, returning default:", e);
             jsonResult = { level: "NORMAL", text, userId, groupId };
         }
 
-        // ------------------------ SEND LINE IF IMPORTANT ------------------------
         if (jsonResult.level === "IMPORTANT") {
-            const alertMessage = `🚨 ข้อความสำคัญจาก BOT
-🏢 กลุ่ม: ${jsonResult.groupId}
-👤 ผู้ส่ง: ${jsonResult.userId}
-💬 ข้อความ: ${jsonResult.text}`;
-
-            console.log("📤 Sending message to LINE...");
-
+            const alertMessage = `🚨 ข้อความสำคัญจาก BOT\n🏢 กลุ่ม: ${jsonResult.groupId}\n👤 ผู้ส่ง: ${jsonResult.userId}\n💬 ข้อความ: ${jsonResult.text}`;
+            console.log("📤 Sending alert to LINE...");
             await axios.post(
                 "https://api.line.me/v2/bot/message/push",
-                {
-                    to: jsonResult.groupId,
-                    messages: [{ type: "text", text: alertMessage }]
-                },
-                {
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${LINE_BOT_TOKEN}`
-                    }
-                }
+                { to: jsonResult.groupId, messages: [{ type: "text", text: alertMessage }] },
+                { headers: { "Content-Type": "application/json", "Authorization": `Bearer ${LINE_BOT_TOKEN}` } }
             );
         }
 
         return res.json({ status: "ok", result: jsonResult });
 
     } catch (err) {
-        console.log("❌ ERROR:", err.response?.data || err.message);
-        return res.status(500).json({
-            error: "AI analysis failed",
-            detail: err.response?.data || err.message
-        });
+        console.error("❌ ERROR calling Gemini:", err.response?.data || err.message);
+        return res.status(500).json({ error: "AI analysis failed", detail: err.response?.data || err.message });
     }
 });
 
-// ------------------------ START SERVER ------------------------
 app.listen(port, () => {
     console.log(`🚀 Server running on port ${port}`);
 });
