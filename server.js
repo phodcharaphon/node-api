@@ -40,19 +40,24 @@ app.post('/analyze', async (req, res) => {
         const alertMessage = `🚨 ข้อความสำคัญจาก BOT\n🏢 กลุ่ม: ${groupId}\n👤 ผู้ส่ง: ${userId}\n💬 ข้อความ: ${text}`;
         console.log("📤 Sending alert to LINE...");
 
-        await axios.post(
-            'https://api.line.me/v2/bot/message/push',
-            {
-                to: groupId,
-                messages: [{ type: 'text', text: alertMessage }],
-            },
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${LINE_BOT_TOKEN}`,
+        try {
+            await axios.post(
+                'https://api.line.me/v2/bot/message/push',
+                {
+                    to: groupId,
+                    messages: [{ type: 'text', text: alertMessage }],
                 },
-            }
-        );
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${LINE_BOT_TOKEN}`,
+                    },
+                }
+            );
+            console.log("✅ LINE alert sent successfully");
+        } catch (err) {
+            console.warn("⚠️ Failed to send LINE message:", err.response?.data || err.message);
+        }
     }
 
     return res.json({ status: 'ok', result });
