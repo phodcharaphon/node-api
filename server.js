@@ -34,7 +34,7 @@ app.get('/analyze', (req, res) => {
 
 // ------------------------ POST /analyze ------------------------
 app.post('/analyze', async (req, res) => {
-    const { text, userId, groupId, replyToken } = req.body;
+    const { text, userId, groupId } = req.body;
     console.log("📥 POST /analyze:", req.body);
 
     if (!text || !userId || !groupId) {
@@ -46,27 +46,23 @@ app.post('/analyze', async (req, res) => {
 
     const result = { level, text, userId, groupId };
 
-    // ส่งข้อความกลับผ่าน Reply API ถ้ามี replyToken
-    if (replyToken) {
-        try {
-            await axios.post('https://api.line.me/v2/bot/message/reply', {
-                replyToken: replyToken,
-                messages: [
-                    { type: 'text', text: isImportant ? `⚠️ Important: ${text}` : `✅ Received: ${text}` }
-                ]
+    // ส่งข้อความไป LINE ผ่าน Push API
+    try {
+        if (level === 'IMPORTANT') {
+            const message = { type: 'text', text: `⚠️ Important: ${text}` };
+            await axios.post('https://api.line.me/v2/bot/message/push', {
+                to: groupId, // หรือ userId หากต้องการส่งถึงผู้ใช้
+                messages: [message]
             }, {
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${process.env.LINE_BOT_TOKEN}`
                 }
             });
-            console.log("💡 LINE reply sent");
-        } catch (err) {
-            console.error("❌ LINE reply failed:", err.response?.data || err.message);
+            console.log("💡 LINE push sent");
         }
-    } else if (level === 'IMPORTANT') {
-        console.log("⚠️ Important message detected:", result);
-        console.log("💡 LINE push skipped: no replyToken provided");
+    } catch (err) {
+        console.error("❌ LINE push failed:", err.response?.data || err.message);
     }
 
     return res.json({ status: 'ok', result });
