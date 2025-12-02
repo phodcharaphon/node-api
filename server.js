@@ -50,7 +50,7 @@ NORMAL = เรื่องทั่วไป
 
         // ------------------------ Gemini API (AI Studio) ------------------------
         const geminiRes = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5:generateText?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0:generateText?key=${GEMINI_API_KEY}`,
             {
                 prompt: { text: prompt },
                 temperature: 0.0,
@@ -59,10 +59,7 @@ NORMAL = เรื่องทั่วไป
             { headers: { "Content-Type": "application/json" } }
         );
 
-        console.log("✅ Gemini RAW Response:", geminiRes.data);
-
         const aiText = geminiRes.data?.candidates?.[0]?.output || "{}";
-
         let jsonResult;
         try {
             jsonResult = JSON.parse(aiText);
