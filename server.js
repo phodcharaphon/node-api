@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios');
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -9,25 +8,22 @@ const port = process.env.PORT || 10000;
 app.use(express.json());
 app.use(cors());
 
-const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
-
 // คำสำคัญที่ถือว่า IMPORTANT
 const IMPORTANT_KEYWORDS = ['ไฟไหม้', 'อุบัติเหตุ', 'ระบบล่ม', 'คดี'];
 
 console.log("🔍 Loaded ENV:");
-console.log("LINE_BOT_TOKEN:", LINE_BOT_TOKEN ? "OK" : "MISSING");
+console.log("LINE_BOT_TOKEN:", process.env.LINE_BOT_TOKEN ? "OK" : "MISSING");
 
-// Health Check
+// ------------------------ Health Check ------------------------
 app.get('/', (req, res) => res.send('🚀 Node API running'));
 
-// GET /analyze สำหรับทดสอบ
+// ------------------------ GET /analyze สำหรับทดสอบ ------------------------
 app.get('/analyze', (req, res) => {
     const { text, userId, groupId } = req.query;
     if (!text || !userId || !groupId) {
         return res.status(400).json({ error: 'Missing query parameters: text, userId, groupId' });
     }
 
-    // ตรวจสอบ keyword
     const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
     const level = isImportant ? 'IMPORTANT' : 'NORMAL';
 
@@ -35,9 +31,8 @@ app.get('/analyze', (req, res) => {
     res.json({ status: 'ok', result });
 });
 
-// POST /analyze
-// POST /analyze
-app.post('/analyze', async (req, res) => {
+// ------------------------ POST /analyze ------------------------
+app.post('/analyze', (req, res) => {
     const { text, userId, groupId } = req.body;
     console.log("📥 POST /analyze:", req.body);
 
@@ -45,40 +40,19 @@ app.post('/analyze', async (req, res) => {
         return res.status(400).json({ error: 'Missing parameters' });
     }
 
-    // ตรวจสอบ keyword
     const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
     const level = isImportant ? 'IMPORTANT' : 'NORMAL';
 
     const result = { level, text, userId, groupId };
 
-    // ส่ง LINE หาก IMPORTANT
-    if (level === 'IMPORTANT' && LINE_BOT_TOKEN) {
-        const targetId = groupId || userId; // fallback: ถ้า groupId ไม่มี ส่งไป userId แทน
-        const alertMessage = `🚨 ข้อความสำคัญจาก BOT\n🏢 กลุ่ม: ${groupId || 'ส่วนตัว'}\n👤 ผู้ส่ง: ${userId}\n💬 ข้อความ: ${text}`;
-        console.log(`📤 Sending alert to LINE (to: ${targetId})...`);
-
-        try {
-            await axios.post(
-                'https://api.line.me/v2/bot/message/push',
-                {
-                    to: targetId,
-                    messages: [{ type: 'text', text: alertMessage }],
-                },
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${LINE_BOT_TOKEN}`,
-                    },
-                }
-            );
-            console.log("✅ LINE alert sent successfully");
-        } catch (err) {
-            console.warn("⚠️ Failed to send LINE message:", err.response?.data || err.message);
-        }
+    // Node.js จะไม่ push LINE เพื่อให้ทำงานร่วมกับ PHP ได้
+    if (level === 'IMPORTANT') {
+        console.log("⚠️ Important message detected:", result);
+        console.log("💡 LINE push skipped: bot may not be in group or user not following bot");
     }
 
     return res.json({ status: 'ok', result });
 });
 
-// Start server
+// ------------------------ Start server ------------------------
 app.listen(port, () => console.log(`🚀 Server running on port ${port}`));
