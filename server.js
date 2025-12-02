@@ -3,7 +3,7 @@ const express = require('express');
 const axios = require('axios');
 
 const app = express();
-const port = process.env.BOT2_PORT || 10001;
+const port = process.env.BOT2_PORT || 10000;
 app.use(express.json());
 
 const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
