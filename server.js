@@ -20,38 +20,38 @@ app.get('/', (req, res) => res.send('🚀 Node API running'));
 
 // ------------------------ GET /analyze สำหรับทดสอบ ------------------------
 app.get('/analyze', (req, res) => {
-    const { text, userId, groupId } = req.query;
-    if (!text || !userId || !groupId) {
-        return res.status(400).json({ error: 'Missing query parameters: text, userId, groupId' });
+    const { text, userId } = req.query;
+    if (!text || !userId) {
+        return res.status(400).json({ error: 'Missing query parameters: text, userId' });
     }
 
     const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
     const level = isImportant ? 'IMPORTANT' : 'NORMAL';
 
-    const result = { level, text, userId, groupId };
+    const result = { level, text, userId };
     res.json({ status: 'ok', result });
 });
 
 // ------------------------ POST /analyze ------------------------
 app.post('/analyze', async (req, res) => {
-    const { text, userId, groupId } = req.body;
+    const { text, userId } = req.body;
     console.log("📥 POST /analyze:", req.body);
 
-    if (!text || !userId || !groupId) {
+    if (!text || !userId) {
         return res.status(400).json({ error: 'Missing parameters' });
     }
 
     const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
     const level = isImportant ? 'IMPORTANT' : 'NORMAL';
 
-    const result = { level, text, userId, groupId };
+    const result = { level, text, userId };
 
-    // ส่งข้อความไป LINE ผ่าน Push API
+    // ส่งข้อความไปผู้ใช้โดยตรง
     try {
         if (level === 'IMPORTANT') {
             const message = { type: 'text', text: `⚠️ Important: ${text}` };
             await axios.post('https://api.line.me/v2/bot/message/push', {
-                to: groupId, // หรือ userId หากต้องการส่งถึงผู้ใช้
+                to: userId,
                 messages: [message]
             }, {
                 headers: {
@@ -59,7 +59,7 @@ app.post('/analyze', async (req, res) => {
                     'Authorization': `Bearer ${process.env.LINE_BOT_TOKEN}`
                 }
             });
-            console.log("💡 LINE push sent");
+            console.log("💡 LINE push sent to user:", userId);
         }
     } catch (err) {
         console.error("❌ LINE push failed:", err.response?.data || err.message);
