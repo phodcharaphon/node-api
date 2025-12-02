@@ -56,13 +56,15 @@ NORMAL = เรื่องทั่วไป
                 temperature: 0.0,
                 maxOutputTokens: 256
             },
-            { headers: { "Content-Type": "application/json" } }
+            { headers: { "Content-Type": "application/json" }, timeout: 10000 }
         );
 
         const aiText = geminiRes.data?.candidates?.[0]?.output || "{}";
+
         let jsonResult;
         try {
             jsonResult = JSON.parse(aiText);
+            if (!jsonResult.level) jsonResult.level = "NORMAL";
         } catch {
             jsonResult = { level: "NORMAL", text, userId, groupId };
         }
