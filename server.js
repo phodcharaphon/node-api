@@ -34,7 +34,7 @@ app.get('/analyze', (req, res) => {
 
 // ------------------------ POST /analyze ------------------------
 app.post('/analyze', async (req, res) => {
-    const { text, userId } = req.body;
+    const { text, userId, groupId, groupName = 'Unknown Group', userName = 'ผู้แจ้ง' } = req.body;
     console.log("📥 POST /analyze:", req.body);
 
     if (!text || !userId) {
@@ -44,15 +44,34 @@ app.post('/analyze', async (req, res) => {
     const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
     const level = isImportant ? 'IMPORTANT' : 'NORMAL';
 
-    const result = { level, text, userId };
+    const result = { level, text, userId, groupId };
 
-    // ส่งข้อความไปผู้ใช้โดยตรง
     try {
-        if (level === 'IMPORTANT') {
-            const message = { type: 'text', text: `⚠️ Important: ${text}` };
+        let messageText;
+
+        if (groupId) {
+            // กรณีบอทอยู่ในกลุ่ม
+            messageText = isImportant
+                ? `⚠️ Important message from ${userName}\nกลุ่ม: ${groupName}\nข้อความ: ${text}`
+                : `📌 ข้อความจาก ${userName} ในกลุ่ม ${groupName}: ${text}`;
+            await axios.post('https://api.line.me/v2/bot/message/push', {
+                to: groupId,
+                messages: [{ type: 'text', text: messageText }]
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.LINE_BOT_TOKEN}`
+                }
+            });
+            console.log("💡 LINE push sent to group:", groupId);
+        } else {
+            // กรณีส่งถึงผู้ใช้โดยตรง
+            messageText = isImportant
+                ? `⚠️ Important: ${text}`
+                : `📌 รับข้อความแล้ว: ${text}`;
             await axios.post('https://api.line.me/v2/bot/message/push', {
                 to: userId,
-                messages: [message]
+                messages: [{ type: 'text', text: messageText }]
             }, {
                 headers: {
                     'Content-Type': 'application/json',
