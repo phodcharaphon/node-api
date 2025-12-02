@@ -20,6 +20,21 @@ console.log("LINE_BOT_TOKEN:", LINE_BOT_TOKEN ? "OK" : "MISSING");
 // Health Check
 app.get('/', (req, res) => res.send('🚀 Node API running'));
 
+// GET /analyze สำหรับทดสอบ
+app.get('/analyze', (req, res) => {
+    const { text, userId, groupId } = req.query;
+    if (!text || !userId || !groupId) {
+        return res.status(400).json({ error: 'Missing query parameters: text, userId, groupId' });
+    }
+
+    // ตรวจสอบ keyword
+    const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
+    const level = isImportant ? 'IMPORTANT' : 'NORMAL';
+
+    const result = { level, text, userId, groupId };
+    res.json({ status: 'ok', result });
+});
+
 // POST /analyze
 app.post('/analyze', async (req, res) => {
     const { text, userId, groupId } = req.body;
