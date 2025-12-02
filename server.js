@@ -12,11 +12,8 @@ app.use(cors());
 // คำสำคัญ
 const IMPORTANT_KEYWORDS = ['ไฟไหม้', 'อุบัติเหตุ', 'ระบบล่ม', 'คดี'];
 
-// URL ของ Bot 2 (สรุปและ push message)
-const BOT2_URL = process.env.BOT2_URL;
-
 console.log("🔍 Loaded ENV:");
-console.log("BOT2_URL:", BOT2_URL ? "OK" : "MISSING");
+console.log("LINE_BOT_TOKEN:", process.env.LINE_BOT_TOKEN ? "OK" : "MISSING");
 
 // Health Check
 app.get('/', (req, res) => res.send('🚀 Node API running'));
@@ -35,28 +32,49 @@ app.post('/analyze', async (req, res) => {
 
     const result = { level, text, userId, groupId };
 
-    // ส่ง payload ไป Bot 2 เพื่อสรุปและ push
     try {
-        const bot2Payload = {
-            level,
-            text,
-            userId,
-            groupId,
-            userName,
-            groupName
-        };
+        let messageText;
 
-        await axios.post(BOT2_URL, bot2Payload, {
-            headers: { 'Content-Type': 'application/json' }
-        });
+        if (groupId) {
+            // กรณี bot อยู่ในกลุ่ม
+            messageText = isImportant
+                ? `⚠️ Important message from ${userName}\nกลุ่ม: ${groupName}\nข้อความ: ${text}`
+                : `📌 ข้อความจาก ${userName} ในกลุ่ม ${groupName}: ${text}`;
 
-        console.log("💡 Payload sent to Bot 2:", bot2Payload);
+            await axios.post('https://api.line.me/v2/bot/message/push', {
+                to: groupId,
+                messages: [{ type: 'text', text: messageText }]
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.LINE_BOT_TOKEN}`
+                }
+            });
+            console.log("💡 LINE push sent to group:", groupId);
+
+        } else {
+            // ส่งถึงผู้ใช้โดยตรง
+            messageText = isImportant
+                ? `⚠️ Important message from ${userName}: ${text}`
+                : `📌 รับข้อความแล้ว: ${text}`;
+
+            await axios.post('https://api.line.me/v2/bot/message/push', {
+                to: userId,
+                messages: [{ type: 'text', text: messageText }]
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.LINE_BOT_TOKEN}`
+                }
+            });
+            console.log("💡 LINE push sent to user:", userId);
+        }
     } catch (err) {
-        console.error("❌ Failed to send payload to Bot 2:", err.response?.data || err.message);
+        console.error("❌ LINE push failed:", err.response?.data || err.message);
     }
 
     return res.json({ status: 'ok', result });
 });
 
 // Start server
-app.listen(port, () => console.log(`🚀 Node API running on port ${port}`));
+app.listen(port, () => console.log(`🚀 Server running on port ${port}`));
