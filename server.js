@@ -14,18 +14,27 @@ app.use(cors());
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 
-if (!GEMINI_API_KEY) console.log("❌ ERROR: GEMINI_API_KEY is missing!");
-if (!LINE_BOT_TOKEN) console.log("❌ ERROR: LINE_BOT_TOKEN is missing!");
+console.log("🔍 Loaded ENV:");
+console.log("GEMINI_API_KEY:", GEMINI_API_KEY ? "OK" : "MISSING");
+console.log("LINE_BOT_TOKEN:", LINE_BOT_TOKEN ? "OK" : "MISSING");
 
-app.post('/', async (req, res) => {
-    console.log("📥 Received request:", req.body);
+// ------------------------ Render Health Check ------------------------
+app.get("/", (req, res) => {
+    res.send("🚀 Node API running on Render");
+});
+
+// ------------------------ MAIN API ------------------------
+app.post("/analyze", async (req, res) => {
+    console.log("📥 POST /analyze:", req.body);
 
     const { text, userId, groupId } = req.body;
-    if (!text || !userId || !groupId)
+    if (!text || !userId || !groupId) {
+        console.log("❌ Missing parameters");
         return res.status(400).json({ error: "Missing parameters" });
+    }
 
     const prompt = `
-ตอบเป็น JSON เท่านั้น:
+ตอบกลับเป็น JSON:
 {
   "level": "IMPORTANT หรือ NORMAL",
   "text": "${text}",
@@ -33,29 +42,25 @@ app.post('/', async (req, res) => {
   "groupId": "${groupId}"
 }
 
-IMPORTANT = เหตุฉุกเฉิน เช่น ไฟไหม้ อุบัติเหตุ ระบบล่ม คดี
+IMPORTANT = ไฟไหม้ อุบัติเหตุ ระบบล่ม คดี
 NORMAL = เรื่องทั่วไป
 `;
 
     try {
-        // ------------------ GEMINI ------------------
-        console.log("🔄 Calling Gemini...");
+        console.log("🔄 Calling Gemini API...");
 
         const geminiRes = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             {
-                contents: [{
-                    parts: [{ text: prompt }]
-                }]
+                contents: [{ parts: [{ text: prompt }] }]
             },
             { headers: { "Content-Type": "application/json" } }
         );
 
-        console.log("✅ Gemini response:", geminiRes.data);
+        console.log("✅ Gemini RAW Response:", geminiRes.data);
 
         const aiText =
-            geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
-            || "{}";
+            geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "{}";
 
         let jsonResult;
         try {
@@ -64,14 +69,14 @@ NORMAL = เรื่องทั่วไป
             jsonResult = { level: "NORMAL", text, userId, groupId };
         }
 
-        // ------------------ LINE PUSH ------------------
+        // ------------------------ SEND LINE IF IMPORTANT ------------------------
         if (jsonResult.level === "IMPORTANT") {
             const alertMessage = `🚨 ข้อความสำคัญจาก BOT A
 🏢 กลุ่ม: ${jsonResult.groupId}
 👤 ผู้ส่ง: ${jsonResult.userId}
 💬 ข้อความ: ${jsonResult.text}`;
 
-            console.log("📤 Sending LINE alert...");
+            console.log("📤 Sending message to LINE...");
 
             await axios.post(
                 "https://api.line.me/v2/bot/message/push",
@@ -91,11 +96,15 @@ NORMAL = เรื่องทั่วไป
         return res.json({ status: "ok", result: jsonResult });
 
     } catch (err) {
-        console.error("❌ ERROR:", err.response?.data || err.message);
-        return res.status(500).json({ error: "AI analysis failed", detail: err.message });
+        console.log("❌ ERROR:", err.response?.data || err.message);
+        return res.status(500).json({
+            error: "AI analysis failed",
+            detail: err.response?.data || err.message
+        });
     }
 });
 
+// ------------------------ START SERVER ------------------------
 app.listen(port, () => {
-    console.log(`✅ Node server running on port ${port}`);
+    console.log(`🚀 Server running on port ${port}`);
 });
