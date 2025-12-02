@@ -22,6 +22,10 @@ app.get("/", (req, res) => {
     res.send("🚀 Node API running on Render");
 });
 
+app.get("/analyze", (req, res) => {
+    res.send("Use POST method to /analyze with JSON body");
+});
+
 // ------------------------ MAIN API ------------------------
 app.post("/analyze", async (req, res) => {
     console.log("📥 POST /analyze:", req.body);
