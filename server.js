@@ -1,52 +1,62 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const axios = require('axios');
 
 const app = express();
-const port = process.env.BOT2_PORT || 10000;
-app.use(express.json());
+const port = process.env.PORT || 10000;
 
+app.use(express.json());
+app.use(cors());
+
+// คำสำคัญ
+const IMPORTANT_KEYWORDS = ['ไฟไหม้', 'อุบัติเหตุ', 'ระบบล่ม', 'คดี'];
+
+// URL ของ Bot 2 (สรุปและ push message)
 const LINE_BOT_TOKEN = process.env.LINE_BOT_TOKEN;
 
-app.post('/summary', async (req, res) => {
-    const { level = 'NORMAL', text, userId, groupId, userName = 'ผู้แจ้ง', groupName = 'Unknown Group' } = req.body;
-    console.log("📥 POST /summary:", req.body);
+console.log("🔍 Loaded ENV:");
+console.log("LINE_BOT_TOKEN:", LINE_BOT_TOKEN ? "OK" : "MISSING");
 
-    if (!text || !userId) return res.status(400).json({ error: 'Missing parameters' });
-    if (!LINE_BOT_TOKEN) return res.status(500).json({ error: 'LINE_BOT_TOKEN not set' });
+// Health Check
+app.get('/', (req, res) => res.send('🚀 Node API running'));
 
-    let messageText = '';
-    try {
-        if (groupId) {
-            messageText = level === 'IMPORTANT'
-                ? `⚠️ ด่วน! จาก ${userName}\nกลุ่ม: ${groupName}\nข้อความ: ${text}`
-                : `📌 จาก ${userName} ในกลุ่ม ${groupName}: ${text}`;
+// POST /analyze
+app.post('/analyze', async (req, res) => {
+    const { text, userId, groupId, userName = 'ผู้แจ้ง', groupName = 'Unknown Group' } = req.body;
+    console.log("📥 POST /analyze:", req.body);
 
-            await axios.post('https://api.line.me/v2/bot/message/push', {
-                to: groupId,
-                messages: [{ type: 'text', text: messageText }]
-            }, {
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_BOT_TOKEN}` }
-            });
-            console.log("💡 LINE push sent to group:", groupId);
-        } else {
-            messageText = level === 'IMPORTANT'
-                ? `⚠️ ด่วน! จาก ${userName}: ${text}`
-                : `📌 รับข้อความแล้ว: ${text}`;
-
-            await axios.post('https://api.line.me/v2/bot/message/push', {
-                to: userId,
-                messages: [{ type: 'text', text: messageText }]
-            }, {
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_BOT_TOKEN}` }
-            });
-            console.log("💡 LINE push sent to user:", userId);
-        }
-    } catch (err) {
-        console.error("❌ LINE push failed:", err.response?.data || err.message);
+    if (!text || !userId) {
+        return res.status(400).json({ error: 'Missing parameters' });
     }
 
-    res.json({ status: 'ok' });
+    const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
+    const level = isImportant ? 'IMPORTANT' : 'NORMAL';
+
+    const result = { level, text, userId, groupId };
+
+    // ส่ง payload ไป Bot 2 เพื่อสรุปและ push
+    try {
+        const bot2Payload = {
+            level,
+            text,
+            userId,
+            groupId,
+            userName,
+            groupName
+        };
+
+        await axios.post(LINE_BOT_TOKEN, bot2Payload, {
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        console.log("💡 Payload sent to Bot 2:", bot2Payload);
+    } catch (err) {
+        console.error("❌ Failed to send payload to Bot 2:", err.response?.data || err.message);
+    }
+
+    return res.json({ status: 'ok', result });
 });
 
-app.listen(port, () => console.log(`🚀 Bot 2 running on port ${port}`));
+// Start server
+app.listen(port, () => console.log(`🚀 Node API running on port ${port}`));
