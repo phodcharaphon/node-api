@@ -18,21 +18,23 @@ const LINE_API_HEADERS = {
 // --- สร้าง NLP manager ภาษาไทย ---
 const manager = new NlpManager({ languages: ['th'] });
 
-// --- กำหนด keyword ตาม prompt ---
-// A. Conflict, Dissatisfaction, Offensive
+// --- A. Conflict, Dissatisfaction, Offensive (High Priority) ---
 const highPriorityKeywords = [
     'โกรธ', 'ไม่พอใจ', 'แย่', 'ต่อว่า', 'พูดเบียดเสียด',
-    'ไอ้', 'เหยียด', 'สาปแช่ง', 'ด่า', 'เหยียดหยาม', 'ล้อเลียน'
+    'ไอ้', 'เหยียด', 'สาปแช่ง', 'ด่า', 'เหยียดหยาม', 'ล้อเลียน',
+    'เลว', 'เลวมาก', 'โง่', 'แย่มาก', 'ห่วย', 'บ้า', 'สัส', 'มึง', 'กาก', 'แม่ง', 'เชี่ย'
 ];
 
-// B. Urgent / Critical
+// --- B. Urgent / Critical ---
 const urgentKeywords = [
     'ไฟไหม้', 'อุบัติเหตุ', 'บาดเจ็บ', 'หาย', 'ขโมย',
-    'ระบบล่ม', 'ฉุกเฉิน', 'ช่วยด้วย', 'อันตราย'
+    'ระบบล่ม', 'ฉุกเฉิน', 'ช่วยด้วย', 'อันตราย', 'ติดอยู่', 'โดนทำร้าย'
 ];
 
-// เพิ่ม training สำหรับ node-nlp
+// --- เพิ่ม training สำหรับ node-nlp ---
+// high priority
 highPriorityKeywords.forEach(word => manager.addDocument('th', word, 'high_priority'));
+// urgent
 urgentKeywords.forEach(word => manager.addDocument('th', word, 'urgent'));
 
 // ข้อความปกติ
@@ -42,25 +44,22 @@ manager.addDocument('th', 'งานเรียบร้อย', 'normal');
 // --- ฝึกโมเดล NLP ---
 (async () => {
     await manager.train();
-    console.log('✅ NLP model trained');
+    console.log('✅ NLP model trained with offensive + urgent keywords');
 })();
 
 // --- ฟังก์ชันวิเคราะห์ข้อความหลายเหตุการณ์ ---
 async function analyzeWithAI(text) {
-    const words = text.split(/[\s,\.!?]+/); // แยกคำเบื้องต้น
     const detectedIntents = new Set();
     const detectedKeywords = [];
 
-    for (const word of words) {
-        const result = await manager.process('th', word);
-        if (result.intent === 'high_priority') {
-            detectedIntents.add('high_priority');
-            if (highPriorityKeywords.includes(word)) detectedKeywords.push(word);
-        } else if (result.intent === 'urgent') {
-            detectedIntents.add('urgent');
-            if (urgentKeywords.includes(word)) detectedKeywords.push(word);
+    // ตรวจสอบทั้งคำและวลี
+    [...highPriorityKeywords, ...urgentKeywords].forEach(keyword => {
+        if (text.includes(keyword)) {
+            detectedKeywords.push(keyword);
+            if (highPriorityKeywords.includes(keyword)) detectedIntents.add('high_priority');
+            if (urgentKeywords.includes(keyword)) detectedIntents.add('urgent');
         }
-    }
+    });
 
     let level = 'NORMAL';
     if (detectedIntents.has('high_priority')) level = 'HIGH PRIORITY';
@@ -74,7 +73,7 @@ async function analyzeWithAI(text) {
 }
 
 // --- Health Check ---
-app.get('/', (req, res) => res.send('🚀 Node-nlp LINE Bot running (Full version)'));
+app.get('/', (req, res) => res.send('🚀 Node-nlp LINE Bot running (Full version with offensive words)'));
 
 // --- POST /analyze ---
 app.post('/analyze', async (req, res) => {
