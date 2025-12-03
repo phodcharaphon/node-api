@@ -28,17 +28,14 @@ app.post('/analyze', async (req, res) => {
     // ตรวจสอบข้อความสำคัญ
     const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
     const level = isImportant ? 'IMPORTANT' : 'NORMAL';
-    const summary = isImportant ? `⚠️ Important: ${text}` : text;
 
-    // ใช้ชื่อผู้ใช้จาก PHP ถ้ามี fallback เป็น userId
+    // ใช้ชื่อผู้ใช้และชื่อกลุ่มจาก PHP
     const userName = userNameFromPHP || userId;
+    const groupName = groupNameFromPHP || groupId || 'ไม่ทราบชื่อกลุ่ม';
 
-    // ใช้ชื่อกลุ่มจาก PHP ถ้ามี fallback เป็น groupId
-    const groupName = groupNameFromPHP || groupId || null;
-
-    // จัดข้อความรวมแบบอ่านง่าย
-    const messageText = 
-        `👥 กลุ่ม: ${groupName || 'ไม่ทราบชื่อกลุ่ม'}\n` +
+    // จัดข้อความเรียงตามที่คุณต้องการ
+    const messageText =
+        `👥 กลุ่ม: ${groupName}\n` +
         `👤 ผู้แจ้ง: ${userName}\n` +
         `📝 รายละเอียด: ${text}`;
 
@@ -57,7 +54,7 @@ app.post('/analyze', async (req, res) => {
     // ส่งผลลัพธ์กลับ Bot1
     const result = {
         level,
-        summary,
+        summary: text,
         originalText: text,
         user: userName,
         group: groupName
