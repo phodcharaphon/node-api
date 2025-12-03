@@ -1,70 +1,112 @@
-import OpenAI from "openai";
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-
-dotenv.config();
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
+const { NlpManager } = require('node-nlp');
 
 const app = express();
-const PORT = process.env.PORT || 10000;
-
 app.use(express.json());
 app.use(cors());
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const PORT = process.env.PORT || 10000;
 
-// LINE Token
 const LINE_API_HEADERS = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${process.env.LINE_BOT_TOKEN}`,
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${process.env.LINE_BOT_TOKEN}`
 };
 
-// --- ฟังก์ชันวิเคราะห์ข้อความด้วย GPT ---
-async function analyzeWithGPT(text) {
-    try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo", // หรือเปลี่ยนเป็น gpt-5-nano/mini
-            messages: [
-                { role: "user", content: text }
-            ],
-            temperature: 0,
-        });
+// --- สร้าง NLP manager ภาษาไทย ---
+const manager = new NlpManager({ languages: ['th'] });
 
-        const message = response.choices[0].message.content;
-        // พยายาม parse JSON ถ้า GPT ตอบเป็น JSON
-        try {
-            return JSON.parse(message);
-        } catch {
-            return { level: "NORMAL", reason: "ไม่สามารถวิเคราะห์", keywords: [] };
+// --- A. Conflict, Dissatisfaction, Offensive (High Priority) ---
+const highPriorityKeywords = [
+    'โกรธ', 'ไม่พอใจ', 'แย่', 'ต่อว่า', 'พูดเบียดเสียด',
+    'ไอ้', 'เหยียด', 'สาปแช่ง', 'ด่า', 'เหยียดหยาม', 'ล้อเลียน',
+    'เลว', 'เลวมาก', 'โง่', 'แย่มาก', 'ห่วย', 'บ้า', 'สัส', 'มึง', 'กาก', 'แม่ง', 'เชี่ย',
+    'งานล่าช้า', 'งานไม่เรียบร้อย', 'ช่างไม่มาตามนัด', 'คุณภาพต่ำ', 'ช่างไม่มืออาชีพ',
+    'บริการแย่', 'พูดจาไม่สุภาพ', 'ทีมงานสับสน', 'ขี้เกียจ',
+    'ไม่โอเค', 'ไม่ดี', 'ไม่ประทับใจ', 'ผิดหวัง', 'ไม่เรียบร้อย', 'ไม่เหมาะสม',
+    // คำติชมเกี่ยวกับงานก่อสร้าง
+    'บ้านไม่เสร็จ', 'งานล่าช้า', 'วัสดุคุณภาพต่ำ', 'ช่างทำงานไม่เรียบร้อย', 'ทีมงานไม่มืออาชีพ'
+];
+
+// --- B. Urgent / Critical ---
+const urgentKeywords = [
+    'ไฟไหม้', 'อุบัติเหตุ', 'บาดเจ็บ', 'หาย', 'ขโมย',
+    'ระบบล่ม', 'ฉุกเฉิน', 'ช่วยด้วย', 'อันตราย', 'ติดอยู่', 'โดนทำร้าย',
+    'บ้านพัง', 'โครงสร้างถล่ม', 'น้ำท่วมไซต์งาน', 'ชิ้นส่วนตกลงมา'
+];
+
+// --- เพิ่ม training สำหรับ node-nlp ---
+highPriorityKeywords.forEach(word => manager.addDocument('th', word, 'high_priority'));
+urgentKeywords.forEach(word => manager.addDocument('th', word, 'urgent'));
+
+// ข้อความปกติ
+manager.addDocument('th', 'วันนี้อากาศดี', 'normal');
+manager.addDocument('th', 'งานเรียบร้อย', 'normal');
+
+// --- ฝึกโมเดล NLP ---
+(async () => {
+    await manager.train();
+    console.log('✅ NLP model trained with construction & service feedback keywords');
+})();
+
+// --- ฟังก์ชันวิเคราะห์ข้อความหลายเหตุการณ์ ---
+async function analyzeWithAI(text) {
+    const detectedIntents = new Set();
+    const detectedKeywords = [];
+
+    const normalizedText = text.replace(/[^ก-๙a-zA-Z0-9 ]/g, '').toLowerCase();
+
+    [...highPriorityKeywords, ...urgentKeywords].forEach(keyword => {
+        if (normalizedText.includes(keyword)) {
+            detectedKeywords.push(keyword);
+            if (highPriorityKeywords.includes(keyword)) detectedIntents.add('high_priority');
+            if (urgentKeywords.includes(keyword)) detectedIntents.add('urgent');
         }
-    } catch (err) {
-        console.error("GPT analyze error:", err.message);
-        return { level: "NORMAL", reason: "เกิดข้อผิดพลาด", keywords: [] };
-    }
+    });
+
+    let level = 'NORMAL';
+    if (detectedIntents.has('high_priority')) level = 'HIGH PRIORITY';
+    if (detectedIntents.has('urgent')) level = 'IMMEDIATE ACTION';
+
+    return {
+        level,
+        categories: Array.from(detectedIntents).length ? Array.from(detectedIntents) : ['normal'],
+        keywords: detectedKeywords
+    };
 }
 
 // --- Health Check ---
-app.get("/", (req, res) => res.send("🚀 Node.js + GPT LINE Bot running"));
+app.get('/', (req, res) => res.send('🚀 Node-nlp LINE Bot running (Construction & Service Feedback)'));
 
 // --- POST /analyze ---
-app.post("/analyze", async (req, res) => {
+app.post('/analyze', async (req, res) => {
     const { text, userId, userName, groupId, groupName } = req.body;
-    if (!text || !userId) return res.status(400).json({ error: "Missing parameters" });
 
-    const analysis = await analyzeWithGPT(text);
+    if (!text || !userId) return res.status(400).json({ error: 'Missing parameters' });
 
-    if (analysis.level === "HIGH PRIORITY" || analysis.level === "IMMEDIATE ACTION") {
+    let analysis;
+    try {
+        analysis = await analyzeWithAI(text);
+    } catch (err) {
+        console.error('AI analyze error:', err.message);
+        analysis = { level: 'NORMAL', categories: ['normal'], keywords: [] };
+    }
+
+    // --- ส่ง LINE เฉพาะ High Priority หรือ Urgent ---
+    if (analysis.level === 'HIGH PRIORITY' || analysis.level === 'IMMEDIATE ACTION') {
         const messageText =
-            `👥 กลุ่ม: ${groupName || groupId || "ไม่ทราบชื่อกลุ่ม"}\n` +
+            `👥 กลุ่ม: ${groupName || groupId || 'ไม่ทราบชื่อกลุ่ม'}\n` +
             `👤 ผู้แจ้ง: ${userName || userId}\n` +
             `📝 ข้อความ: ${text}`;
 
         try {
-            await axios.post(
-                "https://api.line.me/v2/bot/message/push",
-                { to: userId, messages: [{ type: "text", text: messageText }] },
-                { headers: LINE_API_HEADERS }
-            );
+            await axios.post('https://api.line.me/v2/bot/message/push', {
+                to: userId,
+                messages: [{ type: 'text', text: messageText }]
+            }, { headers: LINE_API_HEADERS });
+
             console.log(`💡 Push sent: ${analysis.level} -> ${text}`);
         } catch (err) {
             console.error("❌ LINE push failed:", err.response?.data || err.message);
@@ -72,9 +114,15 @@ app.post("/analyze", async (req, res) => {
     }
 
     return res.json({
-        status: "ok",
-        result: { ...analysis, originalText: text, user: userName || userId, group: groupName || groupId },
+        status: 'ok',
+        result: {
+            ...analysis,
+            originalText: text,
+            user: userName || userId,
+            group: groupName || groupId
+        }
     });
 });
 
+// --- Start server ---
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
