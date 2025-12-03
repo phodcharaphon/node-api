@@ -79,8 +79,8 @@ app.post('/analyze', async (req, res) => {
     if (analysis.level === 'HIGH PRIORITY' || analysis.level === 'IMMEDIATE ACTION') {
         const messageText =
             `👥 กลุ่ม: ${groupName || groupId || 'ไม่ทราบชื่อกลุ่ม'}\n` +
-            `👤 ผู้แจ้ง: ${userName || userId}\n` +
-            `📝 ข้อความ: ${text}`;
+            `👤 ผู้ส่ง: ${userName || userId}\n` +
+            `📝 : ${text}`;
 
         try {
             await axios.post('https://api.line.me/v2/bot/message/push', {
