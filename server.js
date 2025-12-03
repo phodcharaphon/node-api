@@ -38,7 +38,7 @@ app.post('/analyze', async (req, res) => {
         userName = userId;
     }
 
-    // ใช้ groupName จาก PHP ถ้ามี fallback เป็น groupId
+    // ใช้ groupName ที่ PHP ส่งมา (fallback เป็น groupId)
     const groupName = groupNameFromPHP || groupId || null;
 
     // ส่งข้อความกลับผู้ใช้
