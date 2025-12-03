@@ -21,35 +21,35 @@ app.get('/', (req, res) => res.send('🚀 Node API running'));
 
 // POST /analyze
 app.post('/analyze', async (req, res) => {
-    const { text, userId, groupId, groupName: groupNameFromPHP } = req.body;
+    const { text, userId, userName: userNameFromPHP, groupId, groupName: groupNameFromPHP } = req.body;
 
     if (!text || !userId) return res.status(400).json({ error: 'Missing parameters' });
 
+    // ตรวจสอบข้อความสำคัญ
     const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
     const level = isImportant ? 'IMPORTANT' : 'NORMAL';
     const summary = isImportant ? `⚠️ Important: ${text}` : text;
 
-    // ดึงชื่อผู้ใช้จริง
-    let userName = userId;
-    try {
-        const profileRes = await axios.get(`https://api.line.me/v2/bot/profile/${userId}`, { headers: LINE_API_HEADERS });
-        userName = profileRes.data.displayName || userId;
-    } catch {
-        userName = userId;
-    }
+    // ใช้ชื่อผู้ใช้จาก PHP ถ้ามี fallback เป็น userId
+    const userName = userNameFromPHP || userId;
 
-    // ใช้ groupName ที่ PHP ส่งมา (fallback เป็น groupId)
+    // ใช้ชื่อกลุ่มจาก PHP ถ้ามี fallback เป็น groupId
     const groupName = groupNameFromPHP || groupId || null;
+
+    // จัดข้อความรวมแบบอ่านง่าย
+    const messageText = 
+        `👥 กลุ่ม: ${groupName || 'ไม่ทราบชื่อกลุ่ม'}\n` +
+        `👤 ผู้แจ้ง: ${userName}\n` +
+        `📝 รายละเอียด: ${text}`;
 
     // ส่งข้อความกลับผู้ใช้
     try {
-        const messageText = `${summary}\n👤 จาก: ${userName}` + (groupName ? `\n👥 กลุ่ม: ${groupName}` : '');
         await axios.post('https://api.line.me/v2/bot/message/push', {
             to: userId,
             messages: [{ type: 'text', text: messageText }]
         }, { headers: LINE_API_HEADERS });
 
-        console.log(`💡 Push sent to ${userName} | Group: ${groupName} | Level: ${level}`);
+        console.log(`💡 Push sent:\n${messageText}\nLevel: ${level}`);
     } catch (err) {
         console.error("❌ LINE push failed:", err.response?.data || err.message);
     }
