@@ -18,32 +18,13 @@ const LINE_API_HEADERS = {
 // --- สร้าง NLP manager ภาษาไทย ---
 const manager = new NlpManager({ languages: ['th'] });
 
-// --- A. Conflict, Dissatisfaction, Offensive (High Priority) ---
-const highPriorityKeywords = [
-    'โกรธ', 'ไม่พอใจ', 'แย่', 'ต่อว่า', 'พูดเบียดเสียด',
-    'ไอ้', 'เหยียด', 'สาปแช่ง', 'ด่า', 'เหยียดหยาม', 'ล้อเลียน',
-    'เลว', 'เลวมาก', 'โง่', 'แย่มาก', 'ห่วย', 'บ้า', 'สัส', 'มึง', 'กาก', 'แม่ง', 'เชี่ย',
-    'งานล่าช้า', 'งานไม่เรียบร้อย', 'ช่างไม่มาตามนัด', 'คุณภาพต่ำ', 'ช่างไม่มืออาชีพ',
-    'บริการแย่', 'พูดจาไม่สุภาพ', 'ทีมงานสับสน', 'ขี้เกียจ',
-    'ไม่โอเค', 'ไม่ดี', 'ไม่ประทับใจ', 'ผิดหวัง', 'ไม่เรียบร้อย', 'ไม่เหมาะสม',
-    // คำติชมเกี่ยวกับงานก่อสร้าง
-    'บ้านไม่เสร็จ', 'งานล่าช้า', 'วัสดุคุณภาพต่ำ', 'ช่างทำงานไม่เรียบร้อย', 'ทีมงานไม่มืออาชีพ'
-];
+const fs = require('fs');
 
-// --- B. Urgent / Critical ---
-const urgentKeywords = [
-    'ไฟไหม้', 'อุบัติเหตุ', 'บาดเจ็บ', 'หาย', 'ขโมย',
-    'ระบบล่ม', 'ฉุกเฉิน', 'ช่วยด้วย', 'อันตราย', 'ติดอยู่', 'โดนทำร้าย',
-    'บ้านพัง', 'โครงสร้างถล่ม', 'น้ำท่วมไซต์งาน', 'ชิ้นส่วนตกลงมา'
-];
+// โหลดคีย์เวิร์ดจากไฟล์ JSON
+const keywordData = JSON.parse(fs.readFileSync('./keywords.json', 'utf8'));
 
-// --- เพิ่ม training สำหรับ node-nlp ---
-highPriorityKeywords.forEach(word => manager.addDocument('th', word, 'high_priority'));
-urgentKeywords.forEach(word => manager.addDocument('th', word, 'urgent'));
-
-// ข้อความปกติ
-manager.addDocument('th', 'วันนี้อากาศดี', 'normal');
-manager.addDocument('th', 'งานเรียบร้อย', 'normal');
+const highPriorityKeywords = keywordData.highPriorityKeywords;
+const urgentKeywords = keywordData.urgentKeywords;
 
 // --- ฝึกโมเดล NLP ---
 (async () => {
