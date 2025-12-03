@@ -32,9 +32,7 @@ const urgentKeywords = [
 ];
 
 // --- เพิ่ม training สำหรับ node-nlp ---
-// high priority
 highPriorityKeywords.forEach(word => manager.addDocument('th', word, 'high_priority'));
-// urgent
 urgentKeywords.forEach(word => manager.addDocument('th', word, 'urgent'));
 
 // ข้อความปกติ
@@ -52,7 +50,6 @@ async function analyzeWithAI(text) {
     const detectedIntents = new Set();
     const detectedKeywords = [];
 
-    // ตรวจสอบทั้งคำและวลี
     [...highPriorityKeywords, ...urgentKeywords].forEach(keyword => {
         if (text.includes(keyword)) {
             detectedKeywords.push(keyword);
@@ -89,24 +86,23 @@ app.post('/analyze', async (req, res) => {
         analysis = { level: 'NORMAL', categories: ['normal'], keywords: [] };
     }
 
-    const messageText =
-        `👥 กลุ่ม: ${groupName || groupId || 'ไม่ทราบชื่อกลุ่ม'}\n` +
-        `👤 ผู้แจ้ง: ${userName || userId}\n` +
-        `📝 ข้อความ: ${text}\n` +
-        `⚡ การวิเคราะห์ AI: ${analysis.level}\n` +
-        `📌 หมวดหมู่: ${analysis.categories.join(', ')}\n` +
-        `🔑 Keywords: ${analysis.keywords.join(', ') || '-'}`;
+    // --- ส่ง LINE เฉพาะ High Priority หรือ Urgent ---
+    if (analysis.level === 'HIGH PRIORITY' || analysis.level === 'IMMEDIATE ACTION') {
+        const messageText =
+            `👥 กลุ่ม: ${groupName || groupId || 'ไม่ทราบชื่อกลุ่ม'}\n` +
+            `👤 ผู้แจ้ง: ${userName || userId}\n` +
+            `📝 ข้อความ: ${text}`;
 
-    // ส่งข้อความ LINE
-    try {
-        await axios.post('https://api.line.me/v2/bot/message/push', {
-            to: userId,
-            messages: [{ type: 'text', text: messageText }]
-        }, { headers: LINE_API_HEADERS });
+        try {
+            await axios.post('https://api.line.me/v2/bot/message/push', {
+                to: userId,
+                messages: [{ type: 'text', text: messageText }]
+            }, { headers: LINE_API_HEADERS });
 
-        console.log(`💡 Push sent: ${analysis.level} -> ${text}`);
-    } catch (err) {
-        console.error("❌ LINE push failed:", err.response?.data || err.message);
+            console.log(`💡 Push sent: ${analysis.level} -> ${text}`);
+        } catch (err) {
+            console.error("❌ LINE push failed:", err.response?.data || err.message);
+        }
     }
 
     return res.json({
