@@ -18,6 +18,7 @@
     "express": "^5.1.0",
     "google-auth-library": "^10.5.0",
     "node-fetch": "^3.3.2",
-    "node-nlp": "^5.0.0-alpha.5"
+    "node-nlp": "^5.0.0-alpha.5",
+    "openai": "^6.9.1"
   }
 }
