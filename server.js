@@ -27,24 +27,25 @@ app.post('/analyze', async (req, res) => {
         return res.status(400).json({ error: 'Missing parameters' });
     }
 
-    // ตรวจสอบว่าเป็นข้อความสำคัญหรือไม่
     const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
     const level = isImportant ? 'IMPORTANT' : 'NORMAL';
 
-    // ตั้งค่าข้อความ summary: ⚠️ สำหรับ Important, ปกติส่งข้อความตรง ๆ
+    // summary: ⚠️ สำหรับ Important, ข้อความตรง ๆ สำหรับ Normal
     const summary = isImportant ? `⚠️ Important: ${text}` : text;
 
-    let userName = userId;    // Default เป็น userId
-    let groupName = groupId || null;
+    // เริ่มต้น userName และ groupName
+    let userName = userId;
+    let groupName = null;
 
-    // ดึงชื่อผู้ใช้จาก LINE Profile API
+    // ดึงชื่อผู้ใช้จาก Profile API
     try {
         const profileRes = await axios.get(`https://api.line.me/v2/bot/profile/${userId}`, {
             headers: LINE_API_HEADERS
         });
         userName = profileRes.data.displayName || userId;
-    } catch (err) {
-        console.warn("⚠️ Can't fetch user profile:", err.response?.data || err.message);
+    } catch {
+        // fallback ใช้ userId
+        userName = userId;
     }
 
     // ดึงชื่อกลุ่มจาก Group Summary API ถ้ามี
@@ -54,9 +55,9 @@ app.post('/analyze', async (req, res) => {
                 headers: LINE_API_HEADERS
             });
             groupName = groupRes.data.groupName || groupId;
-        } catch (err) {
-            console.warn("⚠️ Can't fetch group summary, fallback to groupId:", groupId);
-            groupName = groupId; // fallback ใช้ groupId แทน
+        } catch {
+            // fallback ใช้ groupId
+            groupName = groupId;
         }
     }
 
@@ -67,7 +68,8 @@ app.post('/analyze', async (req, res) => {
             to: userId,
             messages: [{ type: 'text', text: messageText }]
         }, { headers: LINE_API_HEADERS });
-        console.log(`💡 LINE push sent to user: ${userName} | Level: ${level}`);
+
+        console.log(`💡 LINE push sent to user: ${userName}` + (groupName ? ` | Group: ${groupName}` : '') + ` | Level: ${level}`);
     } catch (err) {
         console.error("❌ LINE push failed:", err.response?.data || err.message);
     }
