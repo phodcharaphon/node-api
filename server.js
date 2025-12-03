@@ -16,10 +16,10 @@ const LINE_API_HEADERS = {
     'Authorization': `Bearer ${process.env.LINE_BOT_TOKEN}`
 };
 
-// ------------------------ Health Check ------------------------
+// Health Check
 app.get('/', (req, res) => res.send('🚀 Node API running'));
 
-// ------------------------ POST /analyze ------------------------
+// POST /analyze
 app.post('/analyze', async (req, res) => {
     const { text, userId, groupId } = req.body;
 
@@ -29,7 +29,6 @@ app.post('/analyze', async (req, res) => {
 
     const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
     const level = isImportant ? 'IMPORTANT' : 'NORMAL';
-
     const summary = isImportant ? `⚠️ Important: ${text}` : text;
 
     // ดึงชื่อผู้ใช้
@@ -43,28 +42,28 @@ app.post('/analyze', async (req, res) => {
         userName = userId;
     }
 
-    // ดึงชื่อกลุ่ม ถ้ามี แต่ fallback เป็นข้อความแทน groupId
-    let groupText = '';
+    // ดึงชื่อกลุ่มจริง ๆ ถ้ามี
+    let groupName = null;
     if (groupId) {
         try {
             const groupRes = await axios.get(`https://api.line.me/v2/bot/group/${groupId}/summary`, {
                 headers: LINE_API_HEADERS
             });
-            groupText = groupRes.data.groupName || 'ชื่อกลุ่มไม่สามารถดึงได้';
+            groupName = groupRes.data.groupName || 'ชื่อกลุ่มไม่สามารถดึงได้';
         } catch {
-            groupText = 'ชื่อกลุ่มไม่สามารถดึงได้';
+            groupName = 'ชื่อกลุ่มไม่สามารถดึงได้';
         }
     }
 
     // ส่งข้อความกลับผู้ใช้
     try {
-        const messageText = `${summary}\n👤 จาก: ${userName}` + (groupText ? `\n👥 กลุ่ม: ${groupText}` : '');
+        const messageText = `${summary}\n👤 จาก: ${userName}` + (groupName ? `\n👥 กลุ่ม: ${groupName}` : '');
         await axios.post('https://api.line.me/v2/bot/message/push', {
             to: userId,
             messages: [{ type: 'text', text: messageText }]
         }, { headers: LINE_API_HEADERS });
 
-        console.log(`💡 LINE push sent to user: ${userName}` + (groupText ? ` | Group: ${groupText}` : '') + ` | Level: ${level}`);
+        console.log(`💡 LINE push sent to user: ${userName}` + (groupName ? ` | Group: ${groupName}` : '') + ` | Level: ${level}`);
     } catch (err) {
         console.error("❌ LINE push failed:", err.response?.data || err.message);
     }
@@ -75,11 +74,11 @@ app.post('/analyze', async (req, res) => {
         summary,
         originalText: text,
         user: userName,
-        group: groupText || null
+        group: groupName
     };
 
     return res.json({ status: 'ok', result });
 });
 
-// ------------------------ Start server ------------------------
+// Start server
 app.listen(port, () => console.log(`🚀 Server running on port ${port}`));
