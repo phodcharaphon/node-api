@@ -30,46 +30,41 @@ app.post('/analyze', async (req, res) => {
     const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
     const level = isImportant ? 'IMPORTANT' : 'NORMAL';
 
-    // summary: ⚠️ สำหรับ Important, ข้อความตรง ๆ สำหรับ Normal
     const summary = isImportant ? `⚠️ Important: ${text}` : text;
 
-    // เริ่มต้น userName และ groupName
+    // ดึงชื่อผู้ใช้
     let userName = userId;
-    let groupName = null;
-
-    // ดึงชื่อผู้ใช้จาก Profile API
     try {
         const profileRes = await axios.get(`https://api.line.me/v2/bot/profile/${userId}`, {
             headers: LINE_API_HEADERS
         });
         userName = profileRes.data.displayName || userId;
     } catch {
-        // fallback ใช้ userId
         userName = userId;
     }
 
-    // ดึงชื่อกลุ่มจาก Group Summary API ถ้ามี
+    // ดึงชื่อกลุ่ม ถ้ามี แต่ fallback เป็นข้อความแทน groupId
+    let groupText = '';
     if (groupId) {
         try {
             const groupRes = await axios.get(`https://api.line.me/v2/bot/group/${groupId}/summary`, {
                 headers: LINE_API_HEADERS
             });
-            groupName = groupRes.data.groupName || groupId;
+            groupText = groupRes.data.groupName || 'ชื่อกลุ่มไม่สามารถดึงได้';
         } catch {
-            // fallback ใช้ groupId
-            groupName = groupId;
+            groupText = 'ชื่อกลุ่มไม่สามารถดึงได้';
         }
     }
 
     // ส่งข้อความกลับผู้ใช้
     try {
-        const messageText = `${summary}\n👤 จาก: ${userName}` + (groupName ? `\n👥 กลุ่ม: ${groupName}` : '');
+        const messageText = `${summary}\n👤 จาก: ${userName}` + (groupText ? `\n👥 กลุ่ม: ${groupText}` : '');
         await axios.post('https://api.line.me/v2/bot/message/push', {
             to: userId,
             messages: [{ type: 'text', text: messageText }]
         }, { headers: LINE_API_HEADERS });
 
-        console.log(`💡 LINE push sent to user: ${userName}` + (groupName ? ` | Group: ${groupName}` : '') + ` | Level: ${level}`);
+        console.log(`💡 LINE push sent to user: ${userName}` + (groupText ? ` | Group: ${groupText}` : '') + ` | Level: ${level}`);
     } catch (err) {
         console.error("❌ LINE push failed:", err.response?.data || err.message);
     }
@@ -80,7 +75,7 @@ app.post('/analyze', async (req, res) => {
         summary,
         originalText: text,
         user: userName,
-        group: groupName
+        group: groupText || null
     };
 
     return res.json({ status: 'ok', result });
