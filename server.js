@@ -35,7 +35,6 @@ app.get('/analyze', (req, res) => {
 // ------------------------ POST /analyze ------------------------
 app.post('/analyze', async (req, res) => {
     const { text, userId } = req.body;
-    console.log("📥 POST /analyze:", req.body);
 
     if (!text || !userId) {
         return res.status(400).json({ error: 'Missing parameters' });
@@ -46,23 +45,18 @@ app.post('/analyze', async (req, res) => {
 
     const result = { level, text, userId };
 
-    // ส่งข้อความไปผู้ใช้โดยตรง
-    try {
-        if (level === 'IMPORTANT') {
-            const message = { type: 'text', text: `⚠️ Important: ${text}` };
-            await axios.post('https://api.line.me/v2/bot/message/push', {
-                to: userId,
-                messages: [message]
-            }, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${process.env.LINE_BOT_TOKEN}`
-                }
-            });
-            console.log("💡 LINE push sent to user:", userId);
-        }
-    } catch (err) {
-        console.error("❌ LINE push failed:", err.response?.data || err.message);
+    // ส่งข้อความกลับผู้ใช้ถ้า Important
+    if (level === 'IMPORTANT') {
+        const message = { type: 'text', text: `⚠️ Important: ${text}` };
+        await axios.post('https://api.line.me/v2/bot/message/push', {
+            to: userId,
+            messages: [message]
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.LINE_BOT_TOKEN}`
+            }
+        });
     }
 
     return res.json({ status: 'ok', result });
