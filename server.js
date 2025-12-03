@@ -55,7 +55,8 @@ app.post('/analyze', async (req, res) => {
             });
             groupName = groupRes.data.groupName || groupId;
         } catch (err) {
-            console.warn("⚠️ Can't fetch group summary:", err.response?.data || err.message);
+            console.warn("⚠️ Can't fetch group summary, fallback to groupId:", groupId);
+            groupName = groupId; // fallback ใช้ groupId แทน
         }
     }
 
