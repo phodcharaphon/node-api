@@ -21,7 +21,7 @@ app.get('/', (req, res) => res.send('🚀 Node API running'));
 
 // POST /analyze
 app.post('/analyze', async (req, res) => {
-    const { text, userId, groupId } = req.body;
+    const { text, userId, groupId, groupName: groupNameFromPHP } = req.body;
 
     if (!text || !userId) return res.status(400).json({ error: 'Missing parameters' });
 
@@ -38,16 +38,8 @@ app.post('/analyze', async (req, res) => {
         userName = userId;
     }
 
-    // ดึงชื่อกลุ่มจริง
-    let groupName = groupId || null;
-    if (groupId) {
-        try {
-            const groupRes = await axios.get(`https://api.line.me/v2/bot/group/${groupId}/summary`, { headers: LINE_API_HEADERS });
-            groupName = groupRes.data.groupName || groupId;
-        } catch {
-            groupName = groupId; // fallback
-        }
-    }
+    // ใช้ groupName จาก PHP ถ้ามี fallback เป็น groupId
+    const groupName = groupNameFromPHP || groupId || null;
 
     // ส่งข้อความกลับผู้ใช้
     try {
