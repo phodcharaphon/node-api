@@ -19,18 +19,18 @@ const LINE_API_HEADERS = {
 const manager = new NlpManager({ languages: ['th'] });
 
 // --- A. Conflict, Dissatisfaction, Offensive (High Priority) ---
-// เพิ่มคำที่เกี่ยวข้องกับบริการรับสร้างบ้าน
 const highPriorityKeywords = [
     'โกรธ', 'ไม่พอใจ', 'แย่', 'ต่อว่า', 'พูดเบียดเสียด',
     'ไอ้', 'เหยียด', 'สาปแช่ง', 'ด่า', 'เหยียดหยาม', 'ล้อเลียน',
     'เลว', 'เลวมาก', 'โง่', 'แย่มาก', 'ห่วย', 'บ้า', 'สัส', 'มึง', 'กาก', 'แม่ง', 'เชี่ย',
     'งานล่าช้า', 'งานไม่เรียบร้อย', 'ช่างไม่มาตามนัด', 'คุณภาพต่ำ', 'ช่างไม่มืออาชีพ',
     'บริการแย่', 'พูดจาไม่สุภาพ', 'ทีมงานสับสน', 'ขี้เกียจ',
-    'ไม่โอเค', 'ไม่ดี', 'ไม่ประทับใจ', 'ผิดหวัง', 'ไม่เรียบร้อย', 'ไม่เหมาะสม'
+    'ไม่โอเค', 'ไม่ดี', 'ไม่ประทับใจ', 'ผิดหวัง', 'ไม่เรียบร้อย', 'ไม่เหมาะสม',
+    // คำติชมเกี่ยวกับงานก่อสร้าง
+    'บ้านไม่เสร็จ', 'งานล่าช้า', 'วัสดุคุณภาพต่ำ', 'ช่างทำงานไม่เรียบร้อย', 'ทีมงานไม่มืออาชีพ'
 ];
 
 // --- B. Urgent / Critical ---
-// เพิ่มเหตุฉุกเฉินเกี่ยวกับก่อสร้าง
 const urgentKeywords = [
     'ไฟไหม้', 'อุบัติเหตุ', 'บาดเจ็บ', 'หาย', 'ขโมย',
     'ระบบล่ม', 'ฉุกเฉิน', 'ช่วยด้วย', 'อันตราย', 'ติดอยู่', 'โดนทำร้าย',
@@ -56,8 +56,10 @@ async function analyzeWithAI(text) {
     const detectedIntents = new Set();
     const detectedKeywords = [];
 
+    const normalizedText = text.replace(/[^ก-๙a-zA-Z0-9 ]/g, '').toLowerCase();
+
     [...highPriorityKeywords, ...urgentKeywords].forEach(keyword => {
-        if (text.includes(keyword)) {
+        if (normalizedText.includes(keyword)) {
             detectedKeywords.push(keyword);
             if (highPriorityKeywords.includes(keyword)) detectedIntents.add('high_priority');
             if (urgentKeywords.includes(keyword)) detectedIntents.add('urgent');
