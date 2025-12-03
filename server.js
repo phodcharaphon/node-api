@@ -19,48 +19,47 @@ const LINE_API_HEADERS = {
 // Health Check
 app.get('/', (req, res) => res.send('🚀 Node API running'));
 
-// POST /analyze
+// ตัวอย่างฟังก์ชัน AI ตรวจสอบข้อความ
+async function analyzeWithAI(text) {
+    const response = await axios.post(
+        'https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english',
+        { inputs: text },
+        { headers: { Authorization: `Bearer ${process.env.HF_TOKEN}` } }
+    );
+    // response[0] อาจมี label และ score
+    const label = response.data[0]?.label || 'NORMAL';
+    return label === 'LABEL_1' ? 'IMPORTANT' : 'NORMAL'; // ปรับตามโมเดล
+}
+
 app.post('/analyze', async (req, res) => {
-    const { text, userId, userName: userNameFromPHP, groupId, groupName: groupNameFromPHP } = req.body;
+    const { text, userId, userName, groupId, groupName } = req.body;
 
     if (!text || !userId) return res.status(400).json({ error: 'Missing parameters' });
 
-    // ตรวจสอบข้อความสำคัญ
-    const isImportant = IMPORTANT_KEYWORDS.some(keyword => text.includes(keyword));
-    const level = isImportant ? 'IMPORTANT' : 'NORMAL';
+    // ใช้ AI ตรวจสอบข้อความ
+    let level;
+    try {
+        level = await analyzeWithAI(text);
+    } catch (err) {
+        console.error('AI analyze error:', err.message);
+        level = 'NORMAL';
+    }
 
-    // ใช้ชื่อผู้ใช้และชื่อกลุ่มจาก PHP
-    const userName = userNameFromPHP || userId;
-    const groupName = groupNameFromPHP || groupId || 'ไม่ทราบชื่อกลุ่ม';
-
-    // จัดข้อความเรียงตามที่คุณต้องการ
     const messageText =
-        `👥 กลุ่ม: ${groupName}\n` +
-        `👤 ผู้แจ้ง: ${userName}\n` +
+        `👥 กลุ่ม: ${groupName || groupId || 'ไม่ทราบชื่อกลุ่ม'}\n` +
+        `👤 ผู้แจ้ง: ${userName || userId}\n` +
         `📝 รายละเอียด: ${text}`;
 
-    // ส่งข้อความกลับผู้ใช้
     try {
         await axios.post('https://api.line.me/v2/bot/message/push', {
             to: userId,
             messages: [{ type: 'text', text: messageText }]
         }, { headers: LINE_API_HEADERS });
-
-        console.log(`💡 Push sent:\n${messageText}\nLevel: ${level}`);
     } catch (err) {
         console.error("❌ LINE push failed:", err.response?.data || err.message);
     }
 
-    // ส่งผลลัพธ์กลับ Bot1
-    const result = {
-        level,
-        summary: text,
-        originalText: text,
-        user: userName,
-        group: groupName
-    };
-
-    return res.json({ status: 'ok', result });
+    return res.json({ status: 'ok', result: { level, originalText: text } });
 });
 
 // Start server
